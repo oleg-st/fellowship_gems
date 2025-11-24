@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <title>Gem Optimization</title>
+  <!-- Local javascript-lp-solver -->
   <script src="solver.js"></script>
   <style>
     body { font-family: sans-serif; max-width: 900px; margin: 20px auto; }
@@ -111,7 +112,7 @@
       Diamond: 0
     };
 
-    let isApplyingState = false; // to avoid hash updates while restoring state
+    let isApplyingState = false; // avoid hash updates while restoring state
 
     function populateTargetSelect(id, defaultValue) {
       const select = document.getElementById(id);
@@ -134,7 +135,7 @@
       return parseInt(totalSlotsDisplay.textContent, 10) || 0;
     }
     function setTotalSlots(val) {
-      const v = Math.max(1, Math.min(11, val)); // cap at 11
+      const v = Math.max(1, Math.min(11, val)); // cap 1..11
       totalSlotsDisplay.textContent = v;
       clampPlus35Slots();
     }
@@ -201,7 +202,6 @@
     function applyStateFromHash() {
       const h = window.location.hash;
       if (!h || !h.startsWith("#s:")) {
-        // no state in hash -> normalize to defaults
         resetToDefaults(false);
         updateHashFromUI();
         return;
@@ -254,8 +254,7 @@
         isApplyingState = false;
       }
 
-      // normalize hash (in case some values were clamped)
-      updateHashFromUI();
+      updateHashFromUI(); // normalize
     }
 
     function resetToDefaults(updateHash = true) {
@@ -580,38 +579,48 @@
       resetToDefaults(true);
     };
 
-    // Attach hash-updating to UI changes
-    document.getElementById("totalSlotsMinus").addEventListener("click", () => {
+    // ------- Attach UI listeners that update hash -------
+
+    document.getElementById("totalSlotsMinus").onclick = () => {
+      setTotalSlots(getTotalSlots() - 1);
       updateHashFromUI();
-    });
-    document.getElementById("totalSlotsPlus").addEventListener("click", () => {
+    };
+    document.getElementById("totalSlotsPlus").onclick = () => {
+      setTotalSlots(getTotalSlots() + 1);
       updateHashFromUI();
-    });
-    document.getElementById("plus35SlotsMinus").addEventListener("click", () => {
+    };
+
+    document.getElementById("plus35SlotsMinus").onclick = () => {
+      setPlus35Slots(getPlus35Slots() - 1);
       updateHashFromUI();
-    });
-    document.getElementById("plus35SlotsPlus").addEventListener("click", () => {
+    };
+    document.getElementById("plus35SlotsPlus").onclick = () => {
+      setPlus35Slots(getPlus35Slots() + 1);
       updateHashFromUI();
-    });
-    hasPlus100Checkbox.addEventListener("change", () => {
+    };
+
+    hasPlus100Checkbox.onchange = () => {
       clampPlus35Slots();
       updateHashFromUI();
-    });
+    };
 
     document.getElementById("budgetInput").addEventListener("change", () => {
       updateHashFromUI();
     });
 
-    ALL_COLORS.forEach(c => {
-      const sel = document.getElementById("target" + c);
-      sel.addEventListener("change", () => {
-        updateHashFromUI();
+    function attachTargetListeners() {
+      ALL_COLORS.forEach(c => {
+        const sel = document.getElementById("target" + c);
+        sel.addEventListener("change", () => {
+          updateHashFromUI();
+        });
       });
-    });
+    }
 
     // Init
     initTargetSelects();
     applyStateFromHash();
+    attachTargetListeners();
   </script>
 </body>
 </html>
