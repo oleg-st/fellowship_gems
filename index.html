@@ -112,6 +112,39 @@
       Diamond: 0
     };
 
+    const DEFAULT_CONFIG = {
+      totalSlots: 11,
+      plus35Slots: 8,
+      hasPlus100: 1,
+      budget: 0,
+      targets: DEFAULT_TARGETS
+    };
+
+    // -------- Helpers for targets / indices --------
+    function targetValueToIndex(value) {
+      const idx = TARGET_VALUES.indexOf(value);
+      return idx >= 0 ? idx : 0;
+    }
+
+    function getPartsFromConfig(config) {
+      const t = config.targets;
+      return [
+        config.totalSlots,
+        config.plus35Slots,
+        config.hasPlus100,
+        config.budget,
+        targetValueToIndex(t.Ruby),
+        targetValueToIndex(t.Amethyst),
+        targetValueToIndex(t.Topaz),
+        targetValueToIndex(t.Emerald),
+        targetValueToIndex(t.Sapphire),
+        targetValueToIndex(t.Diamond)
+      ];
+    }
+
+    const DEFAULT_PARTS = getPartsFromConfig(DEFAULT_CONFIG);
+    const DEFAULT_PARTS_STR = DEFAULT_PARTS.join(",");
+
     let isApplyingState = false; // avoid hash updates while restoring state
 
     function populateTargetSelect(id, defaultValue) {
@@ -159,13 +192,10 @@
     function getTargetIndexByColor(color) {
       const sel = document.getElementById("target" + color);
       const val = parseInt(sel.value, 10) || 0;
-      const idx = TARGET_VALUES.indexOf(val);
-      return idx >= 0 ? idx : 0;
+      return targetValueToIndex(val);
     }
 
-    function updateHashFromUI() {
-      if (isApplyingState) return;
-
+    function getCurrentPartsArray() {
       const total = getTotalSlots();
       const plus35 = getPlus35Slots();
       const has100 = hasPlus100Checkbox.checked ? 1 : 0;
@@ -180,7 +210,7 @@
       const idxSapphire  = getTargetIndexByColor("Sapphire");
       const idxDiamond   = getTargetIndexByColor("Diamond");
 
-      const parts = [
+      return [
         total,
         plus35,
         has100,
@@ -192,26 +222,41 @@
         idxSapphire,
         idxDiamond
       ];
+    }
 
-      const hash = "#s:" + parts.join(",");
-      if (window.location.hash !== hash) {
-        window.location.hash = hash;
+    function updateHashFromUI() {
+      if (isApplyingState) return;
+
+      const parts = getCurrentPartsArray();
+      const body = parts.join(",");
+
+      if (body === DEFAULT_PARTS_STR) {
+        // default state -> no hash
+        if (window.location.hash) {
+          window.location.hash = "";
+        }
+      } else {
+        const hash = "#s:" + body;
+        if (window.location.hash !== hash) {
+          window.location.hash = hash;
+        }
       }
     }
 
     function applyStateFromHash() {
       const h = window.location.hash;
       if (!h || !h.startsWith("#s:")) {
+        // no hash -> just defaults, and don't set hash
         resetToDefaults(false);
-        updateHashFromUI();
         return;
       }
 
       const body = h.slice(3);
       const parts = body.split(",");
       if (parts.length < 10) {
+        // invalid hash, reset to defaults
         resetToDefaults(false);
-        updateHashFromUI();
+        window.location.hash = "";
         return;
       }
 
@@ -254,19 +299,20 @@
         isApplyingState = false;
       }
 
-      updateHashFromUI(); // normalize
+      // normalize hash (e.g. if clamped), but respect default-state logic
+      updateHashFromUI();
     }
 
     function resetToDefaults(updateHash = true) {
       isApplyingState = true;
       try {
-        setTotalSlots(11);
-        setPlus35Slots(8);
-        hasPlus100Checkbox.checked = true;
+        setTotalSlots(DEFAULT_CONFIG.totalSlots);
+        setPlus35Slots(DEFAULT_CONFIG.plus35Slots);
+        hasPlus100Checkbox.checked = !!DEFAULT_CONFIG.hasPlus100;
         clampPlus35Slots();
 
         const budgetInput = document.getElementById("budgetInput");
-        budgetInput.value = "";
+        budgetInput.value = DEFAULT_CONFIG.budget ? String(DEFAULT_CONFIG.budget) : "";
 
         ALL_COLORS.forEach(c => {
           const val = DEFAULT_TARGETS[c];
@@ -276,7 +322,9 @@
       } finally {
         isApplyingState = false;
       }
-      if (updateHash) updateHashFromUI();
+      if (updateHash) {
+        updateHashFromUI();
+      }
     }
 
     // ------- Build multipliers array -------
