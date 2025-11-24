@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gem Optimization</title>
+  <script src="solver.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 20px auto; }
+    h1 { font-size: 22px; }
+    label { display: block; margin-top: 10px; }
+    input, select, button { font-size: 14px; padding: 4px 6px; }
+    .row { margin-top: 10px; }
+    pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; }
+    .inline { display: inline-flex; align-items: center; gap: 6px; }
+    .number-display { min-width: 30px; text-align: center; }
+    button.small { padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <h1>Gem Optimization</h1>
+
+  <!-- Slot configuration -->
+  <div class="row">
+    <strong>Slot configuration</strong><br/>
+
+    <div style="margin-top: 6px;">
+      <span>Total slots (max 11):</span>
+      <span class="inline">
+        <button class="small" id="totalSlotsMinus">-</button>
+        <span id="totalSlotsDisplay" class="number-display">11</span>
+        <button class="small" id="totalSlotsPlus">+</button>
+      </span>
+    </div>
+
+    <div style="margin-top: 6px;">
+      <span>Slots with +35% power (x1.35):</span>
+      <span class="inline">
+        <button class="small" id="plus35SlotsMinus">-</button>
+        <span id="plus35SlotsDisplay" class="number-display">8</span>
+        <button class="small" id="plus35SlotsPlus">+</button>
+      </span>
+    </div>
+
+    <div style="margin-top: 6px;">
+      <label class="inline">
+        <input type="checkbox" id="hasPlus100" checked />
+        Include one +100% slot (x2.0)
+      </label>
+    </div>
+  </div>
+
+  <!-- Budget -->
+  <div class="row">
+    <strong>Base gem budget (optional):</strong><br />
+    <label>
+      Budget:
+      <input type="number" id="budgetInput" min="0" placeholder="e.g. 92" />
+    </label>
+  </div>
+
+  <!-- Targets -->
+  <div class="row">
+    <strong>Target power per color:</strong><br />
+
+    <label>Ruby:
+      <select id="targetRuby"></select>
+    </label>
+    <label>Amethyst:
+      <select id="targetAmethyst"></select>
+    </label>
+    <label>Topaz:
+      <select id="targetTopaz"></select>
+    </label>
+    <label>Emerald:
+      <select id="targetEmerald"></select>
+    </label>
+    <label>Sapphire:
+      <select id="targetSapphire"></select>
+    </label>
+    <label>Diamond:
+      <select id="targetDiamond"></select>
+    </label>
+  </div>
+
+  <div class="row">
+    <button id="solveBtn">Calculate</button>
+  </div>
+
+  <div class="row">
+    <h2>Result</h2>
+    <pre id="output"></pre>
+  </div>
+
+  <script>
+    // ---------- GAME CONSTANTS ----------
+    const TIERS = [1, 2, 3, 4];
+    const BASE_POWER = {1: 120, 2: 240, 3: 360, 4: 480};
+    const BASE_COST  = {1: 1,   2: 3,   3: 9,   4: 27};
+
+    const ALL_COLORS = ["Ruby", "Amethyst", "Topaz", "Emerald", "Sapphire", "Diamond"];
+
+    const TARGET_VALUES = [0, 120, 240, 480, 720, 960, 1200, 1560, 1920, 2280, 2640];
+
+    const DEFAULT_TARGETS = {
+      Ruby: 0,
+      Amethyst: 1200,
+      Topaz: 1200,
+      Emerald: 2640,
+      Sapphire: 0,
+      Diamond: 0
+    };
+
+    function populateTargetSelect(id, defaultValue) {
+      const select = document.getElementById(id);
+      select.innerHTML = "";
+      TARGET_VALUES.forEach((val, idx) => {
+        const opt = document.createElement("option");
+        opt.value = String(val);
+        opt.textContent = `${val} (${idx})`;
+        if (val === defaultValue) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    // ------- Slot UI helpers -------
+    const totalSlotsDisplay = document.getElementById("totalSlotsDisplay");
+    const plus35SlotsDisplay = document.getElementById("plus35SlotsDisplay");
+    const hasPlus100Checkbox = document.getElementById("hasPlus100");
+
+    function getTotalSlots() {
+      return parseInt(totalSlotsDisplay.textContent, 10) || 0;
+    }
+    function setTotalSlots(val) {
+      const v = Math.max(1, Math.min(11, val)); // <= MAX 11
+      totalSlotsDisplay.textContent = v;
+      clampPlus35Slots();
+    }
+    function getPlus35Slots() {
+      return parseInt(plus35SlotsDisplay.textContent, 10) || 0;
+    }
+    function setPlus35Slots(val) {
+      plus35SlotsDisplay.textContent = Math.max(0, val);
+      clampPlus35Slots();
+    }
+
+    function clampPlus35Slots() {
+      const total = getTotalSlots();
+      const has100 = hasPlus100Checkbox.checked ? 1 : 0;
+      const max35 = Math.max(0, total - has100);
+      if (getPlus35Slots() > max35) plus35SlotsDisplay.textContent = max35;
+    }
+
+    document.getElementById("totalSlotsMinus").onclick = () =>
+      setTotalSlots(getTotalSlots() - 1);
+
+    document.getElementById("totalSlotsPlus").onclick = () =>
+      setTotalSlots(getTotalSlots() + 1); // capped at 11
+
+    document.getElementById("plus35SlotsMinus").onclick = () =>
+      setPlus35Slots(getPlus35Slots() - 1);
+
+    document.getElementById("plus35SlotsPlus").onclick = () =>
+      setPlus35Slots(getPlus35Slots() + 1);
+
+    hasPlus100Checkbox.onchange = clampPlus35Slots;
+
+    // Build multipliers array
+    function buildMultipliersFromUI() {
+      let total = getTotalSlots();
+      let plus35 = getPlus35Slots();
+      const has100 = hasPlus100Checkbox.checked ? 1 : 0;
+
+      const max35 = Math.max(0, total - has100);
+      if (plus35 > max35) plus35 = max35;
+
+      const count35 = plus35;
+      const count100 = has100;
+      const count1 = total - count35 - count100;
+
+      const multipliers = [];
+      for (let i = 0; i < count35; i++) multipliers.push(1.35);
+      for (let i = 0; i < count1; i++) multipliers.push(1.0);
+      for (let i = 0; i < count100; i++) multipliers.push(2.0);
+
+      return multipliers;
+    }
+
+    // ------- Group slots -------
+    function groupSlots(multipliers) {
+      const map = new Map();
+      const slotsByGroup = {};
+      let gid = 0;
+
+      multipliers.forEach((m, idx) => {
+        const key = m.toString();
+        if (!map.has(key)) {
+          const id = "g" + gid++;
+          map.set(key, { mult: m, count: 0, id });
+          slotsByGroup[id] = [];
+        }
+        const g = map.get(key);
+        g.count++;
+        slotsByGroup[g.id].push(idx);
+      });
+
+      return { groups: Array.from(map.values()), slotsByGroup };
+    }
+
+    // Helper: build assignment
+    function buildAssignmentFromResult(multipliers, groups, slotsByGroup, result) {
+      const nSlots = multipliers.length;
+      const assignment = new Array(nSlots).fill(null);
+
+      for (const g of groups) {
+        const gemList = [];
+        for (const c of ALL_COLORS) {
+          for (const t of TIERS) {
+            const varName = `y_${g.id}_${c}_t${t}`;
+            const count = Math.round(result[varName] || 0);
+            for (let i = 0; i < count; i++) {
+              gemList.push({ color: c, tier: t, mult: g.mult });
+            }
+          }
+        }
+
+        let slotPos = 0;
+        for (const item of gemList) {
+          const slot = slotsByGroup[g.id][slotPos++];
+          assignment[slot] = {
+            slot,
+            color: item.color,
+            tier: item.tier,
+            mult: item.mult,
+            cost: BASE_COST[item.tier],
+            power: item.mult * BASE_POWER[item.tier]
+          };
+        }
+      }
+
+      const colorPower = {};
+      ALL_COLORS.forEach(c => (colorPower[c] = 0));
+      assignment.forEach(g => {
+        if (g) colorPower[g.color] += g.power;
+      });
+
+      let totalCost = 0;
+      assignment.forEach(g => {
+        if (g) totalCost += g.cost;
+      });
+
+      return { assignment, colorPower, totalCost };
+    }
+
+    // ------- Min-cost solver -------
+    function solveMinCost(multipliers, targets) {
+      const { groups, slotsByGroup } = groupSlots(multipliers);
+
+      const model = {
+        optimize: "cost",
+        opType: "min",
+        constraints: {},
+        variables: {},
+        ints: {}
+      };
+
+      ALL_COLORS.forEach(c => {
+        if (targets[c] > 0) model.constraints["color_" + c] = { min: targets[c] };
+      });
+
+      for (const g of groups) {
+        model.constraints["group_" + g.id] = { max: g.count };
+      }
+
+      for (const g of groups) {
+        for (const c of ALL_COLORS) {
+          for (const t of TIERS) {
+            const name = `y_${g.id}_${c}_t${t}`;
+            const variable = {
+              cost: BASE_COST[t],
+              ["group_" + g.id]: 1
+            };
+            if (targets[c] > 0) {
+              variable["color_" + c] = g.mult * BASE_POWER[t];
+            }
+            model.variables[name] = variable;
+            model.ints[name] = 1;
+          }
+        }
+      }
+
+      const result = solver.Solve(model);
+      if (!result.feasible) throw new Error("No feasible solution.");
+
+      return buildAssignmentFromResult(multipliers, groups, slotsByGroup, result);
+    }
+
+    // ------- Overcap solver within budget -------
+    function solveMaxOvercapWithinBudget(multipliers, targets, budget) {
+      const { groups, slotsByGroup } = groupSlots(multipliers);
+
+      const maxTarget = Math.max(...ALL_COLORS.map(c => targets[c] || 0));
+      if (maxTarget < 2640) return null;
+
+      const priorityColors = ALL_COLORS.filter(c => targets[c] === maxTarget);
+      if (priorityColors.length === 0) return null;
+
+      const model = {
+        optimize: "overcap",
+        opType: "max",
+        constraints: {},
+        variables: {},
+        ints: {}
+      };
+
+      ALL_COLORS.forEach(c => {
+        if (targets[c] > 0) model.constraints["color_" + c] = { min: targets[c] };
+      });
+
+      for (const g of groups) {
+        model.constraints["group_" + g.id] = { max: g.count };
+      }
+
+      model.constraints["budgetCost"] = { max: budget };
+
+      for (const g of groups) {
+        for (const c of ALL_COLORS) {
+          for (const t of TIERS) {
+            const name = `y_${g.id}_${c}_t${t}`;
+            const cost = BASE_COST[t];
+            const power = g.mult * BASE_POWER[t];
+
+            const variable = {
+              budgetCost: cost,
+              ["group_" + g.id]: 1
+            };
+
+            if (targets[c] > 0) variable["color_" + c] = power;
+            if (priorityColors.includes(c)) variable["overcap"] = power;
+
+            model.variables[name] = variable;
+            model.ints[name] = 1;
+          }
+        }
+      }
+
+      const result = solver.Solve(model);
+      if (!result.feasible) return null;
+
+      const base = buildAssignmentFromResult(multipliers, groups, slotsByGroup, result);
+      return { ...base, priorityColors, maxTarget };
+    }
+
+    function initTargetSelects() {
+      ALL_COLORS.forEach(c =>
+        populateTargetSelect("target" + c, DEFAULT_TARGETS[c])
+      );
+    }
+
+    function formatSolution(title, assignment, colorPower, targets, priorityColors, maxTarget) {
+      let text = "";
+      text += title + "\n";
+
+      let totalCost = 0;
+      assignment.forEach(g => {
+        if (g) totalCost += g.cost;
+      });
+      text += `Total base gem cost: ${totalCost}\n\n`;
+
+      text += "Slot assignment:\n";
+      assignment.forEach((g, i) => {
+        if (!g) text += `  Slot ${i}: empty\n`;
+        else {
+          text += `  Slot ${i} (x${g.mult}): ${g.color}, tier t${g.tier}, `
+               + `power ${g.power.toFixed(1)}, cost ${g.cost}\n`;
+        }
+      });
+
+      text += "\nTotal power per color:\n";
+      ALL_COLORS.forEach(c => {
+        const val = colorPower[c] || 0;
+        const target = targets[c] || 0;
+        if (val || target) {
+          text += `  ${c}: ${val.toFixed(1)} (target: ${target})\n`;
+        }
+      });
+
+      if (priorityColors && maxTarget >= 2640) {
+        text += "\nOvercap:\n";
+        priorityColors.forEach(c => {
+          const val = colorPower[c] || 0;
+          const over = Math.max(0, val - 2640);
+          text += `  ${c}: ${over.toFixed(1)}\n`;
+        });
+      }
+
+      return text;
+    }
+
+    // ------- Main button handler -------
+    document.getElementById("solveBtn").onclick = () => {
+      const out = document.getElementById("output");
+      out.textContent = "Calculating…";
+
+      try {
+        const multipliers = buildMultipliersFromUI();
+
+        const targets = {};
+        ALL_COLORS.forEach(c => {
+          targets[c] = parseInt(document.getElementById("target" + c).value, 10);
+        });
+
+        const minRes = solveMinCost(multipliers, targets);
+
+        const maxTarget = Math.max(...ALL_COLORS.map(c => targets[c] || 0));
+        const priorityColors = ALL_COLORS.filter(c => targets[c] === maxTarget && maxTarget >= 2640);
+
+        let text = "";
+        text += formatSolution(
+          "Minimal-cost solution:",
+          minRes.assignment,
+          minRes.colorPower,
+          targets,
+          priorityColors,
+          maxTarget
+        );
+
+        const budgetInput = document.getElementById("budgetInput").value.trim();
+        const budget = budgetInput ? parseInt(budgetInput, 10) : null;
+
+        if (budget && budget > minRes.totalCost && maxTarget >= 2640 && priorityColors.length > 0) {
+          const overRes = solveMaxOvercapWithinBudget(multipliers, targets, budget);
+
+          if (overRes) {
+            const isDifferent =
+              overRes.totalCost !== minRes.totalCost ||
+              priorityColors.some(c => (overRes.colorPower[c] || 0) > (minRes.colorPower[c] || 0));
+
+            text += "\n\n--------------------------------------------------\n\n";
+            if (isDifferent) {
+              text += formatSolution(
+                `Overcap solution within budget ${budget}:`,
+                overRes.assignment,
+                overRes.colorPower,
+                targets,
+                overRes.priorityColors,
+                overRes.maxTarget
+              );
+            } else {
+              text += `Overcap solution within budget ${budget} is the same as minimal-cost solution.\n`;
+            }
+          }
+        } else if (budget && budget <= minRes.totalCost) {
+          text += `\n\nBudget (${budget}) is less than or equal to minimal-cost solution (${minRes.totalCost}).\n`;
+        }
+
+        out.textContent = text;
+      } catch (err) {
+        out.textContent = "Error: " + err.message;
+      }
+    };
+
+    initTargetSelects();
+  </script>
+</body>
+</html>
