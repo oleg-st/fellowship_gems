@@ -84,6 +84,7 @@
 
   <div class="row">
     <button id="solveBtn">Calculate</button>
+    <button id="resetBtn" style="margin-left:8px;">Reset</button>
   </div>
 
   <div class="row">
@@ -110,6 +111,8 @@
       Diamond: 0
     };
 
+    let isApplyingState = false; // to avoid hash updates while restoring state
+
     function populateTargetSelect(id, defaultValue) {
       const select = document.getElementById(id);
       select.innerHTML = "";
@@ -131,7 +134,7 @@
       return parseInt(totalSlotsDisplay.textContent, 10) || 0;
     }
     function setTotalSlots(val) {
-      const v = Math.max(1, Math.min(11, val)); // <= MAX 11
+      const v = Math.max(1, Math.min(11, val)); // cap at 11
       totalSlotsDisplay.textContent = v;
       clampPlus35Slots();
     }
@@ -150,21 +153,134 @@
       if (getPlus35Slots() > max35) plus35SlotsDisplay.textContent = max35;
     }
 
-    document.getElementById("totalSlotsMinus").onclick = () =>
-      setTotalSlots(getTotalSlots() - 1);
+    // ------- Hash encoding / decoding -------
 
-    document.getElementById("totalSlotsPlus").onclick = () =>
-      setTotalSlots(getTotalSlots() + 1); // capped at 11
+    function getTargetIndexByColor(color) {
+      const sel = document.getElementById("target" + color);
+      const val = parseInt(sel.value, 10) || 0;
+      const idx = TARGET_VALUES.indexOf(val);
+      return idx >= 0 ? idx : 0;
+    }
 
-    document.getElementById("plus35SlotsMinus").onclick = () =>
-      setPlus35Slots(getPlus35Slots() - 1);
+    function updateHashFromUI() {
+      if (isApplyingState) return;
 
-    document.getElementById("plus35SlotsPlus").onclick = () =>
-      setPlus35Slots(getPlus35Slots() + 1);
+      const total = getTotalSlots();
+      const plus35 = getPlus35Slots();
+      const has100 = hasPlus100Checkbox.checked ? 1 : 0;
 
-    hasPlus100Checkbox.onchange = clampPlus35Slots;
+      const budgetInput = document.getElementById("budgetInput");
+      const budget = parseInt(budgetInput.value, 10) || 0;
 
-    // Build multipliers array
+      const idxRuby      = getTargetIndexByColor("Ruby");
+      const idxAmethyst  = getTargetIndexByColor("Amethyst");
+      const idxTopaz     = getTargetIndexByColor("Topaz");
+      const idxEmerald   = getTargetIndexByColor("Emerald");
+      const idxSapphire  = getTargetIndexByColor("Sapphire");
+      const idxDiamond   = getTargetIndexByColor("Diamond");
+
+      const parts = [
+        total,
+        plus35,
+        has100,
+        budget,
+        idxRuby,
+        idxAmethyst,
+        idxTopaz,
+        idxEmerald,
+        idxSapphire,
+        idxDiamond
+      ];
+
+      const hash = "#s:" + parts.join(",");
+      if (window.location.hash !== hash) {
+        window.location.hash = hash;
+      }
+    }
+
+    function applyStateFromHash() {
+      const h = window.location.hash;
+      if (!h || !h.startsWith("#s:")) {
+        // no state in hash -> normalize to defaults
+        resetToDefaults(false);
+        updateHashFromUI();
+        return;
+      }
+
+      const body = h.slice(3);
+      const parts = body.split(",");
+      if (parts.length < 10) {
+        resetToDefaults(false);
+        updateHashFromUI();
+        return;
+      }
+
+      isApplyingState = true;
+      try {
+        let [
+          total,
+          plus35,
+          has100,
+          budget,
+          idxRuby,
+          idxAmethyst,
+          idxTopaz,
+          idxEmerald,
+          idxSapphire,
+          idxDiamond
+        ] = parts.map(x => parseInt(x, 10) || 0);
+
+        setTotalSlots(total);
+        setPlus35Slots(plus35);
+        hasPlus100Checkbox.checked = !!has100;
+        clampPlus35Slots();
+
+        const budgetInput = document.getElementById("budgetInput");
+        budgetInput.value = budget > 0 ? String(budget) : "";
+
+        const setTargetByIndex = (color, idx) => {
+          const val = TARGET_VALUES[idx] !== undefined ? TARGET_VALUES[idx] : TARGET_VALUES[0];
+          const sel = document.getElementById("target" + color);
+          sel.value = String(val);
+        };
+
+        setTargetByIndex("Ruby", idxRuby);
+        setTargetByIndex("Amethyst", idxAmethyst);
+        setTargetByIndex("Topaz", idxTopaz);
+        setTargetByIndex("Emerald", idxEmerald);
+        setTargetByIndex("Sapphire", idxSapphire);
+        setTargetByIndex("Diamond", idxDiamond);
+      } finally {
+        isApplyingState = false;
+      }
+
+      // normalize hash (in case some values were clamped)
+      updateHashFromUI();
+    }
+
+    function resetToDefaults(updateHash = true) {
+      isApplyingState = true;
+      try {
+        setTotalSlots(11);
+        setPlus35Slots(8);
+        hasPlus100Checkbox.checked = true;
+        clampPlus35Slots();
+
+        const budgetInput = document.getElementById("budgetInput");
+        budgetInput.value = "";
+
+        ALL_COLORS.forEach(c => {
+          const val = DEFAULT_TARGETS[c];
+          const sel = document.getElementById("target" + c);
+          sel.value = String(val);
+        });
+      } finally {
+        isApplyingState = false;
+      }
+      if (updateHash) updateHashFromUI();
+    }
+
+    // ------- Build multipliers array -------
     function buildMultipliersFromUI() {
       let total = getTotalSlots();
       let plus35 = getPlus35Slots();
@@ -459,7 +575,43 @@
       }
     };
 
+    // Reset button
+    document.getElementById("resetBtn").onclick = () => {
+      resetToDefaults(true);
+    };
+
+    // Attach hash-updating to UI changes
+    document.getElementById("totalSlotsMinus").addEventListener("click", () => {
+      updateHashFromUI();
+    });
+    document.getElementById("totalSlotsPlus").addEventListener("click", () => {
+      updateHashFromUI();
+    });
+    document.getElementById("plus35SlotsMinus").addEventListener("click", () => {
+      updateHashFromUI();
+    });
+    document.getElementById("plus35SlotsPlus").addEventListener("click", () => {
+      updateHashFromUI();
+    });
+    hasPlus100Checkbox.addEventListener("change", () => {
+      clampPlus35Slots();
+      updateHashFromUI();
+    });
+
+    document.getElementById("budgetInput").addEventListener("change", () => {
+      updateHashFromUI();
+    });
+
+    ALL_COLORS.forEach(c => {
+      const sel = document.getElementById("target" + c);
+      sel.addEventListener("change", () => {
+        updateHashFromUI();
+      });
+    });
+
+    // Init
     initTargetSelects();
+    applyStateFromHash();
   </script>
 </body>
 </html>
