@@ -231,7 +231,6 @@
       const body = parts.join(",");
 
       if (body === DEFAULT_PARTS_STR) {
-        // default state -> no hash
         if (window.location.hash) {
           window.location.hash = "";
         }
@@ -246,7 +245,6 @@
     function applyStateFromHash() {
       const h = window.location.hash;
       if (!h || !h.startsWith("#s:")) {
-        // no hash -> just defaults, and don't set hash
         resetToDefaults(false);
         return;
       }
@@ -254,7 +252,6 @@
       const body = h.slice(3);
       const parts = body.split(",");
       if (parts.length < 10) {
-        // invalid hash, reset to defaults
         resetToDefaults(false);
         window.location.hash = "";
         return;
@@ -299,7 +296,6 @@
         isApplyingState = false;
       }
 
-      // normalize hash (e.g. if clamped), but respect default-state logic
       updateHashFromUI();
     }
 
@@ -414,7 +410,7 @@
       return { assignment, colorPower, totalCost };
     }
 
-    // ------- Min-cost solver -------
+    // ------- Min-cost solver (with tie-break by overcap) -------
     function solveMinCost(multipliers, targets) {
       const { groups, slotsByGroup } = groupSlots(multipliers);
 
@@ -425,6 +421,20 @@
         variables: {},
         ints: {}
       };
+
+      // Determine priority colors for overcap tie-breaking
+      const maxTarget = Math.max(...ALL_COLORS.map(c => targets[c] || 0));
+      const priorityColors =
+        maxTarget >= 2640 ? ALL_COLORS.filter(c => targets[c] === maxTarget) : [];
+
+      const useOvercapTieBreak = priorityColors.length > 0;
+      const BIG_M = 20000;
+
+      if (useOvercapTieBreak) {
+        model.optimize = "obj";
+      } else {
+        model.optimize = "cost";
+      }
 
       ALL_COLORS.forEach(c => {
         if (targets[c] > 0) model.constraints["color_" + c] = { min: targets[c] };
@@ -438,13 +448,26 @@
         for (const c of ALL_COLORS) {
           for (const t of TIERS) {
             const name = `y_${g.id}_${c}_t${t}`;
+            const cost = BASE_COST[t];
+            const power = g.mult * BASE_POWER[t];
+
             const variable = {
-              cost: BASE_COST[t],
+              cost: cost,
               ["group_" + g.id]: 1
             };
+
             if (targets[c] > 0) {
-              variable["color_" + c] = g.mult * BASE_POWER[t];
+              variable["color_" + c] = power;
             }
+
+            if (useOvercapTieBreak) {
+              let objCoeff = BIG_M * cost;
+              if (priorityColors.includes(c)) {
+                objCoeff -= power;
+              }
+              variable["obj"] = objCoeff;
+            }
+
             model.variables[name] = variable;
             model.ints[name] = 1;
           }
