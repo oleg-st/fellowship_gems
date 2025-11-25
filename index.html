@@ -740,6 +740,10 @@
       });
     }
 
+    window.addEventListener("hashchange", () => {
+      applyStateFromHash();
+    });
+
     // Init
     initTargetSelects();
     applyStateFromHash();
