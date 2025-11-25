@@ -15,6 +15,22 @@
     .inline { display: inline-flex; align-items: center; gap: 6px; }
     .number-display { min-width: 30px; text-align: center; }
     button.small { padding: 2px 6px; }
+
+    .color-target {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 260px;
+    }
+    .color-label {
+      min-width: 90px;
+    }
+    .color-target select {
+      flex: 1;
+    }
+    .color-label.active-color {
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
@@ -63,22 +79,28 @@
   <div class="row">
     <strong>Target power per color:</strong><br />
 
-    <label>Ruby:
+    <label class="color-target">
+      <span class="color-label" data-color="Ruby">Ruby:</span>
       <select id="targetRuby"></select>
     </label>
-    <label>Amethyst:
+    <label class="color-target">
+      <span class="color-label" data-color="Amethyst">Amethyst:</span>
       <select id="targetAmethyst"></select>
     </label>
-    <label>Topaz:
+    <label class="color-target">
+      <span class="color-label" data-color="Topaz">Topaz:</span>
       <select id="targetTopaz"></select>
     </label>
-    <label>Emerald:
+    <label class="color-target">
+      <span class="color-label" data-color="Emerald">Emerald:</span>
       <select id="targetEmerald"></select>
     </label>
-    <label>Sapphire:
+    <label class="color-target">
+      <span class="color-label" data-color="Sapphire">Sapphire:</span>
       <select id="targetSapphire"></select>
     </label>
-    <label>Diamond:
+    <label class="color-target">
+      <span class="color-label" data-color="Diamond">Diamond:</span>
       <select id="targetDiamond"></select>
     </label>
   </div>
@@ -101,6 +123,20 @@
 
     const ALL_COLORS = ["Ruby", "Amethyst", "Topaz", "Emerald", "Sapphire", "Diamond"];
 
+    function updateColorLabelStyles() {
+      ALL_COLORS.forEach(c => {
+        const sel = document.getElementById("target" + c);
+        const labelSpan = document.querySelector('.color-label[data-color="' + c + '"]');
+        if (!sel || !labelSpan) return;
+
+        const val = parseInt(sel.value, 10) || 0;
+        if (val > 0) {
+          labelSpan.classList.add("active-color");
+        } else {
+          labelSpan.classList.remove("active-color");
+        }
+      });
+    }
     const TARGET_VALUES = [0, 120, 240, 480, 720, 960, 1200, 1560, 1920, 2280, 2640];
 
     const DEFAULT_TARGETS = {
@@ -296,6 +332,7 @@
         isApplyingState = false;
       }
 
+      updateColorLabelStyles();
       updateHashFromUI();
     }
 
@@ -318,6 +355,8 @@
       } finally {
         isApplyingState = false;
       }
+
+      updateColorLabelStyles();
       if (updateHash) {
         updateHashFromUI();
       }
@@ -696,6 +735,7 @@
         const sel = document.getElementById("target" + c);
         sel.addEventListener("change", () => {
           updateHashFromUI();
+          updateColorLabelStyles();
         });
       });
     }
@@ -704,6 +744,7 @@
     initTargetSelects();
     applyStateFromHash();
     attachTargetListeners();
+    updateColorLabelStyles();
   </script>
 </body>
 </html>
