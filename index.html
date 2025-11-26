@@ -631,6 +631,18 @@
       return text;
     }
 
+    function computeTotalOvercap(colorPower, priorityColors) {
+      if (!priorityColors || !priorityColors.length) return 0;
+      let total = 0;
+      priorityColors.forEach(c => {
+        const val = colorPower[c] || 0;
+        if (val > 2640) {
+          total += (val - 2640);
+        }
+      });
+      return total;
+    }
+
     // ------- Main button handler -------
     document.getElementById("solveBtn").onclick = () => {
       const out = document.getElementById("output");
@@ -667,12 +679,11 @@
           const overRes = solveMaxOvercapWithinBudget(multipliers, targets, budget);
 
           if (overRes) {
-            const isDifferent =
-              overRes.totalCost !== minRes.totalCost ||
-              priorityColors.some(c => (overRes.colorPower[c] || 0) > (minRes.colorPower[c] || 0));
+            const minOvercap = computeTotalOvercap(minRes.colorPower, priorityColors);
+            const overOvercap = computeTotalOvercap(overRes.colorPower, overRes.priorityColors);
 
             text += "\n\n--------------------------------------------------\n\n";
-            if (isDifferent) {
+            if (overOvercap > minOvercap) {
               text += formatSolution(
                 `Overcap solution within budget ${budget}:`,
                 overRes.assignment,
