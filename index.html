@@ -282,7 +282,7 @@
       const h = window.location.hash;
       if (!h || !h.startsWith("#s:")) {
         resetToDefaults(false);
-        return;
+        return false;
       }
 
       const body = h.slice(3);
@@ -290,7 +290,7 @@
       if (parts.length < 10) {
         resetToDefaults(false);
         window.location.hash = "";
-        return;
+        return false;
       }
 
       isApplyingState = true;
@@ -334,6 +334,7 @@
 
       updateColorLabelStyles();
       updateHashFromUI();
+      return true;
     }
 
     function resetToDefaults(updateHash = true) {
@@ -643,9 +644,8 @@
       return total;
     }
 
-    // ------- Main button handler -------
-    document.getElementById("solveBtn").onclick = () => {
-      const out = document.getElementById("output");
+    function solve() {
+const out = document.getElementById("output");
       out.textContent = "Calculating…";
 
       try {
@@ -705,6 +705,11 @@
       } catch (err) {
         out.textContent = "Error: " + err.message;
       }
+    }
+
+    // ------- Main button handler -------
+    document.getElementById("solveBtn").onclick = () => {
+      solve();
     };
 
     // Reset button
@@ -757,7 +762,9 @@
 
     // Init
     initTargetSelects();
-    applyStateFromHash();
+    if (applyStateFromHash()) {
+      solve();
+    }
     attachTargetListeners();
     updateColorLabelStyles();
   </script>
