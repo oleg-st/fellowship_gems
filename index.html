@@ -139,6 +139,8 @@
     }
     const TARGET_VALUES = [0, 120, 240, 480, 720, 960, 1200, 1560, 1920, 2280, 2640];
 
+    const GEM_CAP = 92;
+
     const DEFAULT_TARGETS = {
       Ruby: 0,
       Amethyst: 0,
@@ -599,7 +601,12 @@
             text += `Total base gem cost: ${totalCost} (over budget by ${-leftover})\n\n`;
           }
       } else {
-        text += `Total base gem cost: ${totalCost}\n\n`;
+        const leftover = GEM_CAP - totalCost;
+        if (leftover < 0) {
+          text += `Total base gem cost: ${totalCost} (overcap by ${-leftover})\n\n`;
+        } else {
+          text += `Total base gem cost: ${totalCost}\n\n`;
+        }
       }
 
       text += "Slot assignment:\n";
