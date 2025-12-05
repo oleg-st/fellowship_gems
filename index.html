@@ -611,9 +611,9 @@
 
       text += "Slot assignment:\n";
       assignment.forEach((g, i) => {
-        if (!g) text += `  Slot ${i}: empty\n`;
+        if (!g) text += `  Slot ${i + 1}: empty\n`;
         else {
-          text += `  Slot ${i} (x${g.mult}): ${g.color}, tier ${g.tier}, `
+          text += `  Slot ${i + 1} (x${g.mult}): ${g.color}, tier ${g.tier}, `
                + `power ${g.power.toFixed(1)}, cost ${g.cost}\n`;
         }
       });
