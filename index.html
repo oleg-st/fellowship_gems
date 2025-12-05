@@ -613,7 +613,7 @@
       assignment.forEach((g, i) => {
         if (!g) text += `  Slot ${i}: empty\n`;
         else {
-          text += `  Slot ${i} (x${g.mult}): ${g.color}, tier t${g.tier}, `
+          text += `  Slot ${i} (x${g.mult}): ${g.color}, tier ${g.tier}, `
                + `power ${g.power.toFixed(1)}, cost ${g.cost}\n`;
         }
       });
