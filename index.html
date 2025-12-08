@@ -632,7 +632,7 @@
         priorityColors.forEach(c => {
           const val = colorPower[c] || 0;
           const over = Math.max(0, val - 2640);
-          text += `  ${c}: ${over.toFixed(1)}\n`;
+          text += `  ${c}: ${over.toFixed(1)} (+${(over/2*0.01).toFixed(2)}% main stat and hp)\n`;
         });
       }
 
