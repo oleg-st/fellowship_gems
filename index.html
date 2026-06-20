@@ -1,779 +1,457 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Gem Optimization</title>
-  <!-- Local javascript-lp-solver -->
-  <script src="solver.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fellowship Gems - Season 3</title>
   <style>
-    body { font-family: sans-serif; max-width: 900px; margin: 20px auto; }
-    h1 { font-size: 22px; }
-    label { display: block; margin-top: 10px; }
-    input, select, button { font-size: 14px; padding: 4px 6px; }
-    .row { margin-top: 10px; }
-    pre { background: #f4f4f4; padding: 10px; white-space: pre-wrap; }
-    .inline { display: inline-flex; align-items: center; gap: 6px; }
-    .number-display { min-width: 30px; text-align: center; }
-    button.small { padding: 2px 6px; }
+    :root {
+      --bg: #f7f7f3;
+      --panel: #ffffff;
+      --text: #1d2527;
+      --muted: #5d686b;
+      --line: #d9ddda;
+      --accent: #256f6d;
+      --accent-2: #7b4d9a;
+      --warn: #a75817;
+      --good: #1f7a4d;
+    }
 
-    .color-target {
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.4;
+    }
+
+    main {
+      width: min(1320px, calc(100% - 32px));
+      margin: 24px auto 48px;
+    }
+
+    h1 {
+      margin: 0 0 4px;
+      font-size: 26px;
+      line-height: 1.15;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: var(--panel);
+      color: var(--accent);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: white;
+      color: var(--text);
+      border-radius: 6px;
+      padding: 7px 8px;
+      min-height: 36px;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    label.active-field,
+    .gem-row.active-field .gem-color {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    .s1-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 390px) minmax(220px, 280px) 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 14px;
+    }
+
+    .planner-panel > div + div {
+      margin-top: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .targets-panel .color-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .gem-matrix {
+      display: grid;
+      gap: 8px;
+    }
+
+    .gem-row {
+      display: grid;
+      grid-template-columns: minmax(90px, 1.2fr) repeat(4, minmax(54px, 1fr));
+      gap: 6px;
+      align-items: center;
+    }
+
+    .gem-row.header {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .gem-row input {
+      min-height: 32px;
+      padding: 5px 6px;
+    }
+
+    .gem-matrix.disabled {
+      opacity: 0.55;
+    }
+
+    .checks {
+      display: grid;
+      gap: 8px;
+    }
+
+    .check {
       display: flex;
       align-items: center;
       gap: 8px;
-      max-width: 260px;
+      color: var(--text);
+      font-size: 14px;
     }
-    .color-label {
-      min-width: 90px;
+
+    .check input {
+      width: auto;
+      min-height: auto;
     }
-    .color-target select {
-      flex: 1;
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
     }
-    .color-label.active-color {
-      font-weight: bold;
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status {
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: #eef7f3;
+      color: var(--good);
+      border: 1px solid #bddbcc;
+      font-weight: 600;
+    }
+
+    .status.warn {
+      background: #fff4e9;
+      color: var(--warn);
+      border-color: #f0c79e;
+    }
+
+    .option {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+      background: white;
+    }
+
+    .option-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .option-title {
+      font-weight: 700;
+    }
+
+    .metrics {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: #edf1f0;
+      color: #2e383a;
+      padding: 3px 8px;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .pill.accent {
+      background: #e7f2f1;
+      color: var(--accent);
+    }
+
+    .needed {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .details {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .details ul {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+
+    .option-main {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .option-extra {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    .option-main ul,
+    .option-extra ul {
+      margin: 4px 0 0;
+      padding-left: 18px;
+    }
+
+    .empty {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: #fbfbf9;
+    }
+
+    @media (max-width: 900px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .details,
+      .option-main,
+      .option-extra {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar {
+        display: grid;
+      }
+    }
+
+    @media (min-width: 901px) and (max-width: 1180px) {
+      .layout {
+        grid-template-columns: minmax(300px, 390px) 1fr;
+      }
+
+      .targets-panel {
+        grid-column: 1;
+      }
+
+      .result-panel {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+      }
+    }
+
+    @media (max-width: 560px) {
+      main {
+        width: min(100% - 20px, 1180px);
+      }
+
+      .grid-2,
+      .grid-3,
+      .color-grid,
+      .checks {
+        grid-template-columns: 1fr;
+      }
+
+      .gem-row {
+        grid-template-columns: minmax(82px, 1.2fr) repeat(4, minmax(44px, 1fr));
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Gem Optimization</h1>
-
-  <!-- Slot configuration -->
-  <div class="row">
-    <strong>Slot configuration</strong><br/>
-
-    <div style="margin-top: 6px;">
-      <span>Total slots (max 11):</span>
-      <span class="inline">
-        <button class="small" id="totalSlotsMinus">-</button>
-        <span id="totalSlotsDisplay" class="number-display">11</span>
-        <button class="small" id="totalSlotsPlus">+</button>
-      </span>
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>Fellowship Gems - Season 3</h1>
+      </div>
+      <a class="s1-link" href="s1/index.html">Open Season 1/2 calculator</a>
     </div>
 
-    <div style="margin-top: 6px;">
-      <span>Slots with +35% power (x1.35):</span>
-      <span class="inline">
-        <button class="small" id="plus35SlotsMinus">-</button>
-        <span id="plus35SlotsDisplay" class="number-display">8</span>
-        <button class="small" id="plus35SlotsPlus">+</button>
-      </span>
+    <div class="layout">
+      <section class="panel planner-panel">
+        <h2>Planner</h2>
+
+        <div>
+          <div class="grid-2">
+            <label>
+              Sockets
+              <input id="socketCount" type="number" min="0" max="4" value="4" />
+            </label>
+            <label>
+              Max item gem power mods
+              <input id="maxMods" type="number" min="0" max="28" value="26" />
+            </label>
+          </div>
+          <div class="checks" style="margin-top: 10px;">
+            <label class="check">
+              <input id="legendary" type="checkbox" checked />
+              Legendary item equipped
+            </label>
+          </div>
+          <p class="hint" id="maxModsHint">Default max is 28 item gem power mods, or 26 with legendary.</p>
+        </div>
+
+        <div>
+          <h2>Current item gem power mods</h2>
+          <label class="check" style="margin-bottom: 10px;">
+            <input id="setBonus" type="checkbox" />
+            Set bonus x1.25
+          </label>
+          <label class="check" style="margin-bottom: 10px;">
+            <input id="allowAddedMods" type="checkbox" checked />
+            Add extra item gem power mods/sets if needed
+          </label>
+          <div class="color-grid" id="modInputs"></div>
+        </div>
+
+        <div>
+          <h2>Available gems</h2>
+          <label class="check" style="margin-bottom: 10px;">
+            <input id="unlimitedGems" type="checkbox" />
+            Unlimited gems
+          </label>
+          <div class="gem-matrix" id="gemInputs"></div>
+        </div>
+
+      </section>
+
+      <section class="panel targets-panel">
+        <h2>Targets</h2>
+        <div class="color-grid" id="targetInputs"></div>
+        <div class="actions" style="margin-top: 14px;">
+          <button id="calculateBtn">Calculate</button>
+          <button class="secondary" id="resetBtn">Reset</button>
+        </div>
+      </section>
+
+      <section class="panel result-panel">
+        <h2>Result</h2>
+        <div id="result" class="empty">Choose targets and calculate.</div>
+      </section>
     </div>
+  </main>
 
-    <div style="margin-top: 6px;">
-      <label class="inline">
-        <input type="checkbox" id="hasPlus100" checked />
-        Include one +100% slot (x2.0)
-      </label>
-    </div>
-  </div>
-
-  <!-- Targets -->
-  <div class="row">
-    <strong>Target power per color:</strong><br />
-
-    <label class="color-target">
-      <span class="color-label" data-color="Ruby">Ruby:</span>
-      <select id="targetRuby"></select>
-    </label>
-    <label class="color-target">
-      <span class="color-label" data-color="Amethyst">Amethyst:</span>
-      <select id="targetAmethyst"></select>
-    </label>
-    <label class="color-target">
-      <span class="color-label" data-color="Topaz">Topaz:</span>
-      <select id="targetTopaz"></select>
-    </label>
-    <label class="color-target">
-      <span class="color-label" data-color="Emerald">Emerald:</span>
-      <select id="targetEmerald"></select>
-    </label>
-    <label class="color-target">
-      <span class="color-label" data-color="Sapphire">Sapphire:</span>
-      <select id="targetSapphire"></select>
-    </label>
-    <label class="color-target">
-      <span class="color-label" data-color="Diamond">Diamond:</span>
-      <select id="targetDiamond"></select>
-    </label>
-  </div>
-
-  <!-- Budget -->
-  <div class="row">
-    <strong>Base gem budget (optional):</strong><br />
-    <label>
-      Budget:
-      <input type="number" id="budgetInput" min="0" placeholder="e.g. 92" />
-    </label>
-  </div>
-
-  <div class="row">
-    <button id="solveBtn">Calculate</button>
-    <button id="resetBtn" style="margin-left:8px;">Reset</button>
-  </div>
-
-  <div class="row">
-    <h2>Result</h2>
-    <pre id="output"></pre>
-  </div>
-
-  <script>
-    // ---------- GAME CONSTANTS ----------
-    const TIERS = [1, 2, 3, 4];
-    const BASE_POWER = {1: 120, 2: 240, 3: 360, 4: 480};
-    const BASE_COST  = {1: 1,   2: 3,   3: 9,   4: 27};
-
-    const ALL_COLORS = ["Ruby", "Amethyst", "Topaz", "Emerald", "Sapphire", "Diamond"];
-
-    function updateColorLabelStyles() {
-      ALL_COLORS.forEach(c => {
-        const sel = document.getElementById("target" + c);
-        const labelSpan = document.querySelector('.color-label[data-color="' + c + '"]');
-        if (!sel || !labelSpan) return;
-
-        const val = parseInt(sel.value, 10) || 0;
-        if (val > 0) {
-          labelSpan.classList.add("active-color");
-        } else {
-          labelSpan.classList.remove("active-color");
-        }
-      });
-    }
-    const TARGET_VALUES = [0, 120, 240, 480, 720, 960, 1200, 1560, 1920, 2280, 2640];
-
-    const GEM_CAP = 92;
-
-    const DEFAULT_TARGETS = {
-      Ruby: 0,
-      Amethyst: 0,
-      Topaz: 0,
-      Emerald: 0,
-      Sapphire: 0,
-      Diamond: 0
-    };
-
-    const DEFAULT_CONFIG = {
-      totalSlots: 11,
-      plus35Slots: 8,
-      hasPlus100: 1,
-      budget: 0,
-      targets: DEFAULT_TARGETS
-    };
-
-    // -------- Helpers for targets / indices --------
-    function targetValueToIndex(value) {
-      const idx = TARGET_VALUES.indexOf(value);
-      return idx >= 0 ? idx : 0;
-    }
-
-    function getPartsFromConfig(config) {
-      const t = config.targets;
-      return [
-        config.totalSlots,
-        config.plus35Slots,
-        config.hasPlus100,
-        config.budget,
-        targetValueToIndex(t.Ruby),
-        targetValueToIndex(t.Amethyst),
-        targetValueToIndex(t.Topaz),
-        targetValueToIndex(t.Emerald),
-        targetValueToIndex(t.Sapphire),
-        targetValueToIndex(t.Diamond)
-      ];
-    }
-
-    const DEFAULT_PARTS = getPartsFromConfig(DEFAULT_CONFIG);
-    const DEFAULT_PARTS_STR = DEFAULT_PARTS.join(",");
-
-    let isApplyingState = false; // avoid hash updates while restoring state
-
-    function populateTargetSelect(id, defaultValue) {
-      const select = document.getElementById(id);
-      select.innerHTML = "";
-      TARGET_VALUES.forEach((val, idx) => {
-        const opt = document.createElement("option");
-        opt.value = String(val);
-        opt.textContent = `${val} (${idx})`;
-        if (val === defaultValue) opt.selected = true;
-        select.appendChild(opt);
-      });
-    }
-
-    // ------- Slot UI helpers -------
-    const totalSlotsDisplay = document.getElementById("totalSlotsDisplay");
-    const plus35SlotsDisplay = document.getElementById("plus35SlotsDisplay");
-    const hasPlus100Checkbox = document.getElementById("hasPlus100");
-
-    function getTotalSlots() {
-      return parseInt(totalSlotsDisplay.textContent, 10) || 0;
-    }
-    function setTotalSlots(val) {
-      const v = Math.max(1, Math.min(11, val)); // cap 1..11
-      totalSlotsDisplay.textContent = v;
-      clampPlus35Slots();
-    }
-    function getPlus35Slots() {
-      return parseInt(plus35SlotsDisplay.textContent, 10) || 0;
-    }
-    function setPlus35Slots(val) {
-      plus35SlotsDisplay.textContent = Math.max(0, val);
-      clampPlus35Slots();
-    }
-
-    function clampPlus35Slots() {
-      const total = getTotalSlots();
-      const has100 = hasPlus100Checkbox.checked ? 1 : 0;
-      const max35 = Math.max(0, total - has100);
-      if (getPlus35Slots() > max35) plus35SlotsDisplay.textContent = max35;
-    }
-
-    // ------- Hash encoding / decoding -------
-
-    function getTargetIndexByColor(color) {
-      const sel = document.getElementById("target" + color);
-      const val = parseInt(sel.value, 10) || 0;
-      return targetValueToIndex(val);
-    }
-
-    function getCurrentPartsArray() {
-      const total = getTotalSlots();
-      const plus35 = getPlus35Slots();
-      const has100 = hasPlus100Checkbox.checked ? 1 : 0;
-
-      const budgetInput = document.getElementById("budgetInput");
-      const budget = parseInt(budgetInput.value, 10) || 0;
-
-      const idxRuby      = getTargetIndexByColor("Ruby");
-      const idxAmethyst  = getTargetIndexByColor("Amethyst");
-      const idxTopaz     = getTargetIndexByColor("Topaz");
-      const idxEmerald   = getTargetIndexByColor("Emerald");
-      const idxSapphire  = getTargetIndexByColor("Sapphire");
-      const idxDiamond   = getTargetIndexByColor("Diamond");
-
-      return [
-        total,
-        plus35,
-        has100,
-        budget,
-        idxRuby,
-        idxAmethyst,
-        idxTopaz,
-        idxEmerald,
-        idxSapphire,
-        idxDiamond
-      ];
-    }
-
-    function updateHashFromUI() {
-      if (isApplyingState) return;
-
-      const parts = getCurrentPartsArray();
-      const body = parts.join(",");
-
-      if (body === DEFAULT_PARTS_STR) {
-        if (window.location.hash) {
-          window.location.hash = "";
-        }
-      } else {
-        const hash = "#s:" + body;
-        if (window.location.hash !== hash) {
-          window.location.hash = hash;
-        }
-      }
-    }
-
-    function applyStateFromHash() {
-      const h = window.location.hash;
-      if (!h || !h.startsWith("#s:")) {
-        resetToDefaults(false);
-        return false;
-      }
-
-      const body = h.slice(3);
-      const parts = body.split(",");
-      if (parts.length < 10) {
-        resetToDefaults(false);
-        window.location.hash = "";
-        return false;
-      }
-
-      isApplyingState = true;
-      try {
-        let [
-          total,
-          plus35,
-          has100,
-          budget,
-          idxRuby,
-          idxAmethyst,
-          idxTopaz,
-          idxEmerald,
-          idxSapphire,
-          idxDiamond
-        ] = parts.map(x => parseInt(x, 10) || 0);
-
-        setTotalSlots(total);
-        setPlus35Slots(plus35);
-        hasPlus100Checkbox.checked = !!has100;
-        clampPlus35Slots();
-
-        const budgetInput = document.getElementById("budgetInput");
-        budgetInput.value = budget > 0 ? String(budget) : "";
-
-        const setTargetByIndex = (color, idx) => {
-          const val = TARGET_VALUES[idx] !== undefined ? TARGET_VALUES[idx] : TARGET_VALUES[0];
-          const sel = document.getElementById("target" + color);
-          sel.value = String(val);
-        };
-
-        setTargetByIndex("Ruby", idxRuby);
-        setTargetByIndex("Amethyst", idxAmethyst);
-        setTargetByIndex("Topaz", idxTopaz);
-        setTargetByIndex("Emerald", idxEmerald);
-        setTargetByIndex("Sapphire", idxSapphire);
-        setTargetByIndex("Diamond", idxDiamond);
-      } finally {
-        isApplyingState = false;
-      }
-
-      updateColorLabelStyles();
-      updateHashFromUI();
-      return true;
-    }
-
-    function resetToDefaults(updateHash = true) {
-      isApplyingState = true;
-      try {
-        setTotalSlots(DEFAULT_CONFIG.totalSlots);
-        setPlus35Slots(DEFAULT_CONFIG.plus35Slots);
-        hasPlus100Checkbox.checked = !!DEFAULT_CONFIG.hasPlus100;
-        clampPlus35Slots();
-
-        const budgetInput = document.getElementById("budgetInput");
-        budgetInput.value = DEFAULT_CONFIG.budget ? String(DEFAULT_CONFIG.budget) : "";
-
-        ALL_COLORS.forEach(c => {
-          const val = DEFAULT_TARGETS[c];
-          const sel = document.getElementById("target" + c);
-          sel.value = String(val);
-        });
-      } finally {
-        isApplyingState = false;
-      }
-
-      updateColorLabelStyles();
-      if (updateHash) {
-        updateHashFromUI();
-      }
-    }
-
-    // ------- Build multipliers array -------
-    function buildMultipliersFromUI() {
-      let total = getTotalSlots();
-      let plus35 = getPlus35Slots();
-      const has100 = hasPlus100Checkbox.checked ? 1 : 0;
-
-      const max35 = Math.max(0, total - has100);
-      if (plus35 > max35) plus35 = max35;
-
-      const count35 = plus35;
-      const count100 = has100;
-      const count1 = total - count35 - count100;
-
-      const multipliers = [];
-      for (let i = 0; i < count35; i++) multipliers.push(1.35);
-      for (let i = 0; i < count1; i++) multipliers.push(1.0);
-      for (let i = 0; i < count100; i++) multipliers.push(2.0);
-
-      return multipliers;
-    }
-
-    // ------- Group slots -------
-    function groupSlots(multipliers) {
-      const map = new Map();
-      const slotsByGroup = {};
-      let gid = 0;
-
-      multipliers.forEach((m, idx) => {
-        const key = m.toString();
-        if (!map.has(key)) {
-          const id = "g" + gid++;
-          map.set(key, { mult: m, count: 0, id });
-          slotsByGroup[id] = [];
-        }
-        const g = map.get(key);
-        g.count++;
-        slotsByGroup[g.id].push(idx);
-      });
-
-      return { groups: Array.from(map.values()), slotsByGroup };
-    }
-
-    // Helper: build assignment
-    function buildAssignmentFromResult(multipliers, groups, slotsByGroup, result) {
-      const nSlots = multipliers.length;
-      const assignment = new Array(nSlots).fill(null);
-
-      for (const g of groups) {
-        const gemList = [];
-        for (const c of ALL_COLORS) {
-          for (const t of TIERS) {
-            const varName = `y_${g.id}_${c}_t${t}`;
-            const count = Math.round(result[varName] || 0);
-            for (let i = 0; i < count; i++) {
-              gemList.push({ color: c, tier: t, mult: g.mult });
-            }
-          }
-        }
-
-        let slotPos = 0;
-        for (const item of gemList) {
-          const slot = slotsByGroup[g.id][slotPos++];
-          assignment[slot] = {
-            slot,
-            color: item.color,
-            tier: item.tier,
-            mult: item.mult,
-            cost: BASE_COST[item.tier],
-            power: item.mult * BASE_POWER[item.tier]
-          };
-        }
-      }
-
-      const colorPower = {};
-      ALL_COLORS.forEach(c => (colorPower[c] = 0));
-      assignment.forEach(g => {
-        if (g) colorPower[g.color] += g.power;
-      });
-
-      let totalCost = 0;
-      assignment.forEach(g => {
-        if (g) totalCost += g.cost;
-      });
-
-      return { assignment, colorPower, totalCost };
-    }
-
-    // ------- Min-cost solver (with tie-break by overcap) -------
-    function solveMinCost(multipliers, targets) {
-      const { groups, slotsByGroup } = groupSlots(multipliers);
-
-      const model = {
-        optimize: "cost",
-        opType: "min",
-        constraints: {},
-        variables: {},
-        ints: {}
-      };
-
-      // Determine priority colors for overcap tie-breaking
-      const maxTarget = Math.max(...ALL_COLORS.map(c => targets[c] || 0));
-      const priorityColors =
-        maxTarget >= 2640 ? ALL_COLORS.filter(c => targets[c] === maxTarget) : [];
-
-      const useOvercapTieBreak = priorityColors.length > 0;
-      const BIG_M = 20000;
-
-      if (useOvercapTieBreak) {
-        model.optimize = "obj";
-      } else {
-        model.optimize = "cost";
-      }
-
-      ALL_COLORS.forEach(c => {
-        if (targets[c] > 0) model.constraints["color_" + c] = { min: targets[c] };
-      });
-
-      for (const g of groups) {
-        model.constraints["group_" + g.id] = { max: g.count };
-      }
-
-      for (const g of groups) {
-        for (const c of ALL_COLORS) {
-          for (const t of TIERS) {
-            const name = `y_${g.id}_${c}_t${t}`;
-            const cost = BASE_COST[t];
-            const power = g.mult * BASE_POWER[t];
-
-            const variable = {
-              cost: cost,
-              ["group_" + g.id]: 1
-            };
-
-            if (targets[c] > 0) {
-              variable["color_" + c] = power;
-            }
-
-            if (useOvercapTieBreak) {
-              let objCoeff = BIG_M * cost;
-              if (priorityColors.includes(c)) {
-                objCoeff -= power;
-              }
-              variable["obj"] = objCoeff;
-            }
-
-            model.variables[name] = variable;
-            model.ints[name] = 1;
-          }
-        }
-      }
-
-      const result = solver.Solve(model);
-      if (!result.feasible) throw new Error("No feasible solution.");
-
-      return buildAssignmentFromResult(multipliers, groups, slotsByGroup, result);
-    }
-
-    // ------- Overcap solver within budget -------
-    function solveMaxOvercapWithinBudget(multipliers, targets, budget) {
-      const { groups, slotsByGroup } = groupSlots(multipliers);
-
-      const maxTarget = Math.max(...ALL_COLORS.map(c => targets[c] || 0));
-      if (maxTarget < 2640) return null;
-
-      const priorityColors = ALL_COLORS.filter(c => targets[c] === maxTarget);
-      if (priorityColors.length === 0) return null;
-
-      const model = {
-        optimize: "overcap",
-        opType: "max",
-        constraints: {},
-        variables: {},
-        ints: {}
-      };
-
-      ALL_COLORS.forEach(c => {
-        if (targets[c] > 0) model.constraints["color_" + c] = { min: targets[c] };
-      });
-
-      for (const g of groups) {
-        model.constraints["group_" + g.id] = { max: g.count };
-      }
-
-      model.constraints["budgetCost"] = { max: budget };
-
-      for (const g of groups) {
-        for (const c of ALL_COLORS) {
-          for (const t of TIERS) {
-            const name = `y_${g.id}_${c}_t${t}`;
-            const cost = BASE_COST[t];
-            const power = g.mult * BASE_POWER[t];
-
-            const variable = {
-              budgetCost: cost,
-              ["group_" + g.id]: 1
-            };
-
-            if (targets[c] > 0) variable["color_" + c] = power;
-            if (priorityColors.includes(c)) variable["overcap"] = power;
-
-            model.variables[name] = variable;
-            model.ints[name] = 1;
-          }
-        }
-      }
-
-      const result = solver.Solve(model);
-      if (!result.feasible) return null;
-
-      const base = buildAssignmentFromResult(multipliers, groups, slotsByGroup, result);
-      return { ...base, priorityColors, maxTarget };
-    }
-
-    function initTargetSelects() {
-      ALL_COLORS.forEach(c =>
-        populateTargetSelect("target" + c, DEFAULT_TARGETS[c])
-      );
-    }
-
-    function formatSolution(title, assignment, colorPower, targets, priorityColors, maxTarget, budget) {
-      let text = "";
-      text += title + "\n";
-
-      let totalCost = 0;
-      assignment.forEach(g => {
-        if (g) totalCost += g.cost;
-      });
-
-      if (budget != null && !Number.isNaN(budget)) {
-        const leftover = budget - totalCost;
-          if (leftover >= 0) {
-            text += `Total base gem cost: ${totalCost} (remaining budget: ${leftover})\n\n`;
-          } else {
-            text += `Total base gem cost: ${totalCost} (over budget by ${-leftover})\n\n`;
-          }
-      } else {
-        const leftover = GEM_CAP - totalCost;
-        if (leftover < 0) {
-          text += `Total base gem cost: ${totalCost} (overcap by ${-leftover})\n\n`;
-        } else {
-          text += `Total base gem cost: ${totalCost}\n\n`;
-        }
-      }
-
-      text += "Slot assignment:\n";
-      assignment.forEach((g, i) => {
-        if (!g) text += `  Slot ${i + 1}: empty\n`;
-        else {
-          text += `  Slot ${i + 1} (x${g.mult}): ${g.color}, tier ${g.tier}, `
-               + `power ${g.power.toFixed(1)}, cost ${g.cost}\n`;
-        }
-      });
-
-      text += "\nTotal power per color:\n";
-      ALL_COLORS.forEach(c => {
-        const val = colorPower[c] || 0;
-        const target = targets[c] || 0;
-        if (val || target) {
-          text += `  ${c}: ${val.toFixed(1)} (target: ${target})\n`;
-        }
-      });
-
-      if (priorityColors && maxTarget >= 2640) {
-        text += "\nOvercap:\n";
-        priorityColors.forEach(c => {
-          const val = colorPower[c] || 0;
-          const over = Math.max(0, val - 2640);
-          text += `  ${c}: ${over.toFixed(1)} (+${(over/2*0.01).toFixed(2)}% main stat and hp)\n`;
-        });
-      }
-
-      return text;
-    }
-
-    function computeTotalOvercap(colorPower, priorityColors) {
-      if (!priorityColors || !priorityColors.length) return 0;
-      let total = 0;
-      priorityColors.forEach(c => {
-        const val = colorPower[c] || 0;
-        if (val > 2640) {
-          total += (val - 2640);
-        }
-      });
-      return total;
-    }
-
-    function solve() {
-const out = document.getElementById("output");
-      out.textContent = "Calculating…";
-
-      try {
-        const multipliers = buildMultipliersFromUI();
-
-        const targets = {};
-        ALL_COLORS.forEach(c => {
-          targets[c] = parseInt(document.getElementById("target" + c).value, 10);
-        });
-
-        const minRes = solveMinCost(multipliers, targets);
-
-        const maxTarget = Math.max(...ALL_COLORS.map(c => targets[c] || 0));
-        const priorityColors = ALL_COLORS.filter(c => targets[c] === maxTarget && maxTarget >= 2640);
-
-        const budgetInput = document.getElementById("budgetInput").value.trim();
-        const budget = budgetInput ? parseInt(budgetInput, 10) : null;
-
-        let text = "";
-        text += formatSolution(
-          "Minimal-cost solution:",
-          minRes.assignment,
-          minRes.colorPower,
-          targets,
-          priorityColors,
-          maxTarget,
-          budget
-        );
-
-        if (budget && budget > minRes.totalCost && maxTarget >= 2640 && priorityColors.length > 0) {
-          const overRes = solveMaxOvercapWithinBudget(multipliers, targets, budget);
-
-          if (overRes) {
-            const minOvercap = computeTotalOvercap(minRes.colorPower, priorityColors);
-            const overOvercap = computeTotalOvercap(overRes.colorPower, overRes.priorityColors);
-
-            text += "\n\n--------------------------------------------------\n\n";
-            if (overOvercap > minOvercap) {
-              text += formatSolution(
-                `Overcap solution within budget ${budget}:`,
-                overRes.assignment,
-                overRes.colorPower,
-                targets,
-                overRes.priorityColors,
-                overRes.maxTarget,
-                budget
-              );
-            } else {
-              text += `Overcap solution within budget ${budget} is the same as minimal-cost solution.\n`;
-            }
-          }
-        } else if (budget && budget <= minRes.totalCost) {
-          text += `\n\nBudget (${budget}) is less than or equal to minimal-cost solution (${minRes.totalCost}).\n`;
-        }
-
-        out.textContent = text;
-      } catch (err) {
-        out.textContent = "Error: " + err.message;
-      }
-    }
-
-    // ------- Main button handler -------
-    document.getElementById("solveBtn").onclick = () => {
-      solve();
-    };
-
-    // Reset button
-    document.getElementById("resetBtn").onclick = () => {
-      resetToDefaults(true);
-    };
-
-    // ------- Attach UI listeners that update hash -------
-
-    document.getElementById("totalSlotsMinus").onclick = () => {
-      setTotalSlots(getTotalSlots() - 1);
-      updateHashFromUI();
-    };
-    document.getElementById("totalSlotsPlus").onclick = () => {
-      setTotalSlots(getTotalSlots() + 1);
-      updateHashFromUI();
-    };
-
-    document.getElementById("plus35SlotsMinus").onclick = () => {
-      setPlus35Slots(getPlus35Slots() - 1);
-      updateHashFromUI();
-    };
-    document.getElementById("plus35SlotsPlus").onclick = () => {
-      setPlus35Slots(getPlus35Slots() + 1);
-      updateHashFromUI();
-    };
-
-    hasPlus100Checkbox.onchange = () => {
-      clampPlus35Slots();
-      updateHashFromUI();
-    };
-
-    document.getElementById("budgetInput").addEventListener("change", () => {
-      updateHashFromUI();
-    });
-
-    function attachTargetListeners() {
-      ALL_COLORS.forEach(c => {
-        const sel = document.getElementById("target" + c);
-        sel.addEventListener("change", () => {
-          updateHashFromUI();
-          updateColorLabelStyles();
-        });
-      });
-    }
-
-    window.addEventListener("hashchange", () => {
-      applyStateFromHash();
-    });
-
-    // Init
-    initTargetSelects();
-    if (applyStateFromHash()) {
-      solve();
-    }
-    attachTargetListeners();
-    updateColorLabelStyles();
-  </script>
+  <script src="app.js"></script>
 </body>
 </html>
+
