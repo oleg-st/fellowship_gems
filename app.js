@@ -186,7 +186,7 @@
         allowAddedMods: next(),
         legendary: next(),
         unlimitedGems: next(),
-        ignoreOvercap: 0,
+        ignoreOvercap: 1,
         mods,
         gems,
         targets
@@ -206,7 +206,7 @@
       COLORS.forEach(c => {
         targets[c] = TARGETS[next()] || 0;
       });
-      state.ignoreOvercap = next();
+      if (i < parts.length) state.ignoreOvercap = next();
 
       return state;
     }
@@ -972,7 +972,7 @@
       document.getElementById("socketCount").value = "4";
       document.getElementById("setBonus").checked = false;
       document.getElementById("allowAddedMods").checked = true;
-      document.getElementById("ignoreOvercap").checked = false;
+      document.getElementById("ignoreOvercap").checked = true;
       document.getElementById("unlimitedGems").checked = false;
       legendaryInput.checked = true;
       updateLegendaryDefaults();
