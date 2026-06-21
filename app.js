@@ -133,6 +133,7 @@
         maxMods: readInt("maxMods", 28),
         setBonus: document.getElementById("setBonus").checked ? 1 : 0,
         allowAddedMods: document.getElementById("allowAddedMods").checked ? 1 : 0,
+        ignoreOvercap: document.getElementById("ignoreOvercap").checked ? 1 : 0,
         legendary: legendaryInput.checked ? 1 : 0,
         unlimitedGems: document.getElementById("unlimitedGems").checked ? 1 : 0,
         mods,
@@ -161,6 +162,7 @@
         COLORS.forEach(c => parts.push(state.gems[t.tier][c] || 0));
       });
       COLORS.forEach(c => parts.push(targetIndex(state.targets[c] || 0)));
+      parts.push(state.ignoreOvercap || 0);
 
       while (parts.length && parts[parts.length - 1] === 0) {
         parts.pop();
@@ -184,6 +186,7 @@
         allowAddedMods: next(),
         legendary: next(),
         unlimitedGems: next(),
+        ignoreOvercap: 0,
         mods,
         gems,
         targets
@@ -203,6 +206,7 @@
       COLORS.forEach(c => {
         targets[c] = TARGETS[next()] || 0;
       });
+      state.ignoreOvercap = next();
 
       return state;
     }
@@ -224,6 +228,7 @@
         document.getElementById("maxMods").value = String(clamp(parseInt(state.maxMods, 10) || 28, 0, 28));
         document.getElementById("setBonus").checked = !!state.setBonus;
         document.getElementById("allowAddedMods").checked = state.allowAddedMods !== 0;
+        document.getElementById("ignoreOvercap").checked = !!state.ignoreOvercap;
         legendaryInput.checked = !!state.legendary;
         document.getElementById("unlimitedGems").checked = !!state.unlimitedGems;
 
@@ -264,6 +269,7 @@
       const setMultiplier = hasSetBonus ? 1.25 : 1;
       const maxMods = clamp(readInt("maxMods", legendaryInput.checked ? 26 : 28), 0, 28);
       const allowAddedMods = document.getElementById("allowAddedMods").checked;
+      const ignoreOvercap = document.getElementById("ignoreOvercap").checked;
       const unlimitedGems = document.getElementById("unlimitedGems").checked;
       const currentMods = {};
       const targets = {};
@@ -284,7 +290,7 @@
         });
       });
 
-      return { socketCount, hasSetBonus, addedSetBonus: false, setMultiplier, maxMods, allowAddedMods, unlimitedGems, currentMods, currentGems, targets, availableGems };
+      return { socketCount, hasSetBonus, addedSetBonus: false, setMultiplier, maxMods, allowAddedMods, ignoreOvercap, unlimitedGems, currentMods, currentGems, targets, availableGems };
     }
 
     function currentRawPower(state) {
@@ -503,19 +509,19 @@
       };
     }
 
-    function dominates(a, b) {
+    function dominates(a, b, ignoreOvercap = false) {
       const lowerIsBetter = ["addedModCount", "missingGemCost"];
-      const noWorse = lowerIsBetter.every(k => a[k] <= b[k]) && a.overcap >= b.overcap;
-      const better = lowerIsBetter.some(k => a[k] < b[k]) || a.overcap > b.overcap;
+      const noWorse = lowerIsBetter.every(k => a[k] <= b[k]) && (ignoreOvercap || a.overcap >= b.overcap);
+      const better = lowerIsBetter.some(k => a[k] < b[k]) || (!ignoreOvercap && a.overcap > b.overcap);
       return noWorse && better;
     }
 
-    function paretoFilter(options) {
+    function paretoFilter(options, ignoreOvercap = false) {
       const filtered = [];
       options.forEach(candidate => {
-        if (filtered.some(existing => dominates(existing, candidate))) return;
+        if (filtered.some(existing => dominates(existing, candidate, ignoreOvercap))) return;
         for (let i = filtered.length - 1; i >= 0; i--) {
-          if (dominates(candidate, filtered[i])) filtered.splice(i, 1);
+          if (dominates(candidate, filtered[i], ignoreOvercap)) filtered.splice(i, 1);
         }
         filtered.push(candidate);
       });
@@ -603,14 +609,15 @@
       });
     }
 
-    function tradeoffKey(option) {
-      return [
+    function tradeoffKey(option, ignoreOvercap = false) {
+      const values = [
         option.addedModCount,
-        option.missingGemCost,
-        Math.round(option.overcap),
-        option.gemCost,
-        Math.round(option.waste)
-      ].join("/");
+        option.missingGemCost
+      ];
+      if (!ignoreOvercap) values.push(Math.round(option.overcap));
+      values.push(option.gemCost);
+      if (!ignoreOvercap) values.push(Math.round(option.waste));
+      return values.join("/");
     }
 
     function countTouchedColors(option) {
@@ -635,10 +642,10 @@
       ].join("/");
     }
 
-    function compactEquivalentTradeoffs(options) {
+    function compactEquivalentTradeoffs(options, ignoreOvercap = false) {
       const groups = new Map();
       options.forEach(option => {
-        const key = tradeoffKey(option);
+        const key = tradeoffKey(option, ignoreOvercap);
         const current = groups.get(key);
         if (!current || representativeScore(option) < representativeScore(current)) {
           option.variantCount = current ? current.variantCount : 0;
@@ -656,26 +663,27 @@
       ].join("/");
     }
 
-    function compareOptions() {
+    function compareOptions(ignoreOvercap = false) {
       const order = ["addedModCount", "missingGemCost"];
       return (a, b) => {
         for (const key of order) {
         if (a[key] !== b[key]) return a[key] - b[key];
         }
-        if (a.overcap !== b.overcap) return b.overcap - a.overcap;
+        if (!ignoreOvercap && a.overcap !== b.overcap) return b.overcap - a.overcap;
         if (a.gemCost !== b.gemCost) return a.gemCost - b.gemCost;
         return a.waste - b.waste;
       };
     }
 
-    function selectTradeoffOptions(options) {
-      const compacted = compactEquivalentTradeoffs(options).sort(compareOptions());
+    function selectTradeoffOptions(options, ignoreOvercap = false) {
+      const compare = compareOptions(ignoreOvercap);
+      const compacted = compactEquivalentTradeoffs(options, ignoreOvercap).sort(compare);
       const byResourceTradeoff = new Map();
 
       compacted.forEach(option => {
         const key = resourceTradeoffKey(option);
         const current = byResourceTradeoff.get(key);
-        if (!current || compareOptions()(option, current) < 0) {
+        if (!current || compare(option, current) < 0) {
           option.variantCount = (current ? current.variantCount : 0) + (option.variantCount || 1);
           byResourceTradeoff.set(key, option);
         } else {
@@ -683,7 +691,7 @@
         }
       });
 
-      const profiles = Array.from(byResourceTradeoff.values()).sort(compareOptions());
+      const profiles = Array.from(byResourceTradeoff.values()).sort(compare);
       const selected = [];
       const selectedKeys = new Set();
 
@@ -699,19 +707,19 @@
 
       addOption(profiles.slice().sort((a, b) => {
         if (a.overcap !== b.overcap) return b.overcap - a.overcap;
-        return compareOptions()(a, b);
+        return compare(a, b);
       })[0]);
 
       addOption(profiles.slice().sort((a, b) => {
         if (a.addedModCount !== b.addedModCount) return a.addedModCount - b.addedModCount;
-        return compareOptions()(a, b);
+        return compare(a, b);
       })[0]);
 
       for (const option of profiles) {
         addOption(option);
       }
 
-      return selected.sort(compareOptions());
+      return selected.sort(compare);
     }
 
     function findSolutions(state) {
@@ -731,9 +739,11 @@
       }
 
       const unique = uniqueOptions(options);
-      const expanded = unique.flatMap(option => [option, ...expandOvercapOptions(state, option)]);
+      const expanded = state.ignoreOvercap
+        ? unique
+        : unique.flatMap(option => [option, ...expandOvercapOptions(state, option)]);
 
-      return selectTradeoffOptions(paretoFilter(uniqueOptions(expanded)));
+      return selectTradeoffOptions(paretoFilter(uniqueOptions(expanded), state.ignoreOvercap), state.ignoreOvercap);
     }
 
     function findClosestInventoryPlans(state) {
@@ -962,6 +972,7 @@
       document.getElementById("socketCount").value = "4";
       document.getElementById("setBonus").checked = false;
       document.getElementById("allowAddedMods").checked = true;
+      document.getElementById("ignoreOvercap").checked = false;
       document.getElementById("unlimitedGems").checked = false;
       legendaryInput.checked = true;
       updateLegendaryDefaults();
