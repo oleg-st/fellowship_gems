@@ -970,7 +970,7 @@
 
     function reset() {
       document.getElementById("socketCount").value = "4";
-      document.getElementById("setBonus").checked = true;
+      document.getElementById("setBonus").checked = false;
       document.getElementById("allowAddedMods").checked = true;
       document.getElementById("ignoreOvercap").checked = true;
       document.getElementById("unlimitedGems").checked = false;
